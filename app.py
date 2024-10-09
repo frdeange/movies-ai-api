@@ -79,29 +79,47 @@ def get_cine_data():
 
 @app.route('/cines', methods=['GET'])
 def get_cines():
-    cines_data = get_cine_data()
-    if cines_data is None:
-        return jsonify({"error": "Error en la solicitud HTTP o no se encontraron cines"}), 500
-    return jsonify(cines_data)
+    cines = []
+    response = requests.get('https://www.sensacine.com/cines/')
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.content, 'lxml')
+        cines_list = soup.find_all('div', class_='theater-card')
+        for cine in cines_list:
+            nombre = cine.find('h2', class_='title').text.strip()
+            direccion = cine.find('div', class_='address').text.strip()
+            enlace_cine = cine.find('a', class_='title-link')
+            cine_data = {
+                "nombre": nombre,
+                "direccion": direccion,
+                "url": "https://www.sensacine.com" + enlace_cine['href']
+            }
+            cines.append(cine_data)
+    return jsonify(cines)
 
 @app.route('/peliculas', methods=['GET'])
 def get_peliculas():
-    cines_data = get_cine_data()
-    if cines_data is None:
-        return jsonify({"error": "Error en la solicitud HTTP o no se encontraron cines"}), 500
-    
-    peliculas_data = []
-    for cine in cines_data:
-        for pelicula in cine["peliculas"]:
-            peliculas_data.append({
-                "cine": cine["nombre"],
-                "direccion": cine["direccion"],
-                "titulo": pelicula["titulo"],
-                "horarios": pelicula["horarios"],
-                "fecha": pelicula["fecha"]
-            })
-    
-    return jsonify(peliculas_data)
+    peliculas = []
+    response = requests.get('https://www.sensacine.com/peliculas/')
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.content, 'lxml')
+        peliculas_list = soup.find_all('div', class_='entity-card')
+        for pelicula in peliculas_list:
+            titulo = pelicula.find('a', class_='meta-title-link').text.strip()
+            duracion = pelicula.find('div', class_='meta-body-item meta-body-info').text.strip()
+            director = pelicula.find('div', class_='meta-body-item meta-body-direction').text.strip()
+            reparto = pelicula.find('div', class_='meta-body-item meta-body-actor').text.strip()
+            sinopsis = pelicula.find('div', class_='content-txt').text.strip()
+            valoracion = pelicula.find('span', class_='stareval-note').text.strip()
+            pelicula_data = {
+                "titulo": titulo,
+                "duracion": duracion,
+                "director": director,
+                "reparto": reparto,
+                "sinopsis": sinopsis,
+                "valoracion": valoracion
+            }
+            peliculas.append(pelicula_data)
+    return jsonify(peliculas)
 
 @app.route('/horarios', methods=['GET'])
 def get_horarios():
