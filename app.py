@@ -17,26 +17,14 @@ swaggerui_blueprint = get_swaggerui_blueprint(
 )
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
-def get_cine_data():
-    """
-    Fetches cinema data from the Sensacine website for a specific city.
-    This function scrapes the Sensacine website to retrieve information about cinemas in a specific city,
-    including their names, addresses, URLs, and the movies they are showing over the next 7 days.
-    Returns:
-        list: A list of dictionaries, each containing the following keys:
-            - "nombre" (str): The name of the cinema.
-            - "direccion" (str): The address of the cinema.
-            - "url" (str): The URL to the cinema's page on Sensacine.
-            - "peliculas" (list): A list of dictionaries, each containing:
-                - "titulo" (str): The title of the movie.
-                - "horarios" (list): A list of showtimes for the movie.
-                - "fecha" (str): The date for which the showtimes are listed.
-        None: If the request to the Sensacine website fails or no cinemas are found.
-    """
+
+@app.route('/cines', methods=['GET'])
+def get_cines():
+    
     url = "https://www.sensacine.com/cines/ciudades-72368/"
 
     # Gets the HTML content of the page
-    response = requests.get(url)
+    response = requests.get(url)   
     
     # Checks if the request was successful
     if response.status_code != 200:
@@ -108,25 +96,6 @@ def get_cine_data():
             cines_data.append(cine_data)
     
     return cines_data
-
-@app.route('/cines', methods=['GET'])
-def get_cines():
-    cines = []
-    response = requests.get('https://www.sensacine.com/cines/')
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'lxml')
-        cines_list = soup.find_all('div', class_='theater-card')
-        for cine in cines_list:
-            nombre = cine.find('h2', class_='title').text.strip()
-            direccion = cine.find('div', class_='address').text.strip()
-            enlace_cine = cine.find('a', class_='title-link')
-            cine_data = {
-                "nombre": nombre,
-                "direccion": direccion,
-                "url": "https://www.sensacine.com" + enlace_cine['href']
-            }
-            cines.append(cine_data)
-    return jsonify(cines)
 
 @app.route('/peliculas', methods=['GET'])
 def get_peliculas():
