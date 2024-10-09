@@ -70,11 +70,12 @@ def get_peliculas_by_cine(cine_url):
     cine_response = requests.get(cine_url)
 
     peliculas_data = []
+    number_of_days = 1
 
     if cine_response.status_code == 200:
         cine_soup = BeautifulSoup(cine_response.content, 'lxml')
     
-        for i in range(7):
+        for i in range(number_of_days):
             date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
             date_url = cine_url + f"#shwt_date={date}"
             
@@ -161,6 +162,30 @@ def get_horarios():
                     })
     
     return jsonify({"error": "No se encontraron horarios para la película en el cine especificado"}), 404
+
+
+@app.route('/cartelera', methods=['GET'])
+def get_cartelera_by_cine():
+    cine_nombre = request.args.get('cine')
+
+    print(cine_nombre)
+    
+    if not cine_nombre:
+        return jsonify({"error": "Parámetro 'cine' es requerido"}), 400
+    
+    cines_data = get_cines_data()
+    if cines_data is None:
+        return jsonify({"error": "Error en la solicitud HTTP o no se encontraron cines"}), 500
+    
+    for cine in cines_data:
+        if cine["nombre"].lower() == cine_nombre.lower():
+            print("Cine encontrado:")
+            print(cine["nombre"] + " " + cine["url"])
+            cine_url = cine["url"]
+            peliculas = get_peliculas_by_cine(cine_url)
+            return jsonify(peliculas)
+    
+    return jsonify({"error": "No se encontraron horarios para el cine especificado"}), 404
 
 @app.route('/cines_pelicula', methods=['GET'])
 def get_cines_pelicula():
