@@ -1,6 +1,5 @@
 {
-    "name": "My Dev Container",
-    // "image": "mcr.microsoft.com/vscode/devcontainers/base:0-bullseye",
+    "name": "Movies API Dev Container",
     "build": {
         "dockerfile": "Dockerfile"        
     },
