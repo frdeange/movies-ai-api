@@ -9,3 +9,10 @@ htmlcov/
 .tox/
 docs/_build/
 .deployment/
+
+# Terraform
+.terraform/
+terraform.tfvars
+terraform.tfstate
+.terraform.lock.hcl
+infra/terraform.tfstate.backup
