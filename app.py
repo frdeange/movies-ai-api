@@ -17,10 +17,7 @@ swaggerui_blueprint = get_swaggerui_blueprint(
 )
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
-
-@app.route('/cines', methods=['GET'])
-def get_cines():
-    
+def get_cines_data():
     url = "https://www.sensacine.com/cines/ciudades-72368/"
 
     # Gets the HTML content of the page
@@ -61,41 +58,55 @@ def get_cines():
                 "direccion": direccion_cine.text.strip(),
                 "url": "https://www.sensacine.com" + enlace_cine['href'],
                 "num_salas": num_salas.text.strip()
-            }
+            }            
             
-            # # Fetches the URL of the cinema
-            # cine_url = cine_data["url"]
-
-            # cine_response = requests.get(cine_url)
-            
-            # if cine_response.status_code == 200:
-            #     cine_soup = BeautifulSoup(cine_response.content, 'lxml')
-                
-            #     for i in range(7):
-            #         date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
-            #         date_url = cine_url + f"#shwt_date={date}"
-                    
-            #         date_response = requests.get(date_url)
-                    
-            #         if date_response.status_code == 200:
-            #             date_soup = BeautifulSoup(date_response.content, 'lxml')
-            #             peliculas = date_soup.find_all('div', class_='card entity-card entity-card-list movie-card-theater cf hred')
-                        
-            #             if peliculas:
-            #                 for pelicula in peliculas:
-            #                     titulo_pelicula = pelicula.find('a', class_='meta-title-link')
-            #                     horarios = pelicula.find_all('span', class_='showtimes-hour-item-value')
-                                
-            #                     if titulo_pelicula and horarios:
-            #                         pelicula_data = {
-            #                             "titulo": titulo_pelicula.text.strip(),
-            #                             "horarios": [horario.text.strip() for horario in horarios],
-            #                             "fecha": date
-            #                         }
-            #                         cine_data["peliculas"].append(pelicula_data)
             cines_data.append(cine_data)
     
     return cines_data
+
+def get_peliculas_by_cine(cine_url):
+    
+    # Fetches the URL of the cinema
+    cine_response = requests.get(cine_url)
+
+    peliculas_data = []
+    number_of_days = 1
+
+    if cine_response.status_code == 200:
+        cine_soup = BeautifulSoup(cine_response.content, 'lxml')
+    
+        for i in range(number_of_days):
+            date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+            date_url = cine_url + f"#shwt_date={date}"
+            
+            date_response = requests.get(date_url)
+            
+            if date_response.status_code == 200:
+                date_soup = BeautifulSoup(date_response.content, 'lxml')
+                peliculas = date_soup.find_all('div', class_='card entity-card entity-card-list movie-card-theater cf hred')
+                
+                if peliculas:
+                    for pelicula in peliculas:
+                        titulo_pelicula = pelicula.find('a', class_='meta-title-link')
+                        horarios = pelicula.find_all('span', class_='showtimes-hour-item-value')
+                        
+                        if titulo_pelicula and horarios:
+                            pelicula_data = {
+                                "titulo": titulo_pelicula.text.strip(),
+                                "horarios": [horario.text.strip() for horario in horarios],
+                                "fecha": date
+                            }
+                        peliculas_data.append(pelicula_data)
+        return peliculas_data
+
+
+@app.route('/cines', methods=['GET'])
+def get_cines():    
+    cines_data = get_cines_data()
+    if cines_data is None:
+        return jsonify({"error": "No se pudieron obtener los datos de los cines"}), 500
+    return jsonify(cines_data)
+
 
 @app.route('/peliculas', methods=['GET'])
 def get_peliculas():
@@ -130,13 +141,17 @@ def get_horarios():
     if not cine_nombre or not pelicula_titulo:
         return jsonify({"error": "Parámetros 'cine' y 'pelicula' son requeridos"}), 400
     
-    cines_data = get_cine_data()
+    cines_data = get_cines_data()
     if cines_data is None:
         return jsonify({"error": "Error en la solicitud HTTP o no se encontraron cines"}), 500
     
     for cine in cines_data:
         if cine["nombre"].lower() == cine_nombre.lower():
-            for pelicula in cine["peliculas"]:
+
+            cine_url = cine["url"]
+            peliculas = get_peliculas_by_cine(cine_url)
+
+            for pelicula in peliculas:
                 if pelicula["titulo"].lower() == pelicula_titulo.lower():
                     return jsonify({
                         "cine": cine["nombre"],
@@ -147,6 +162,30 @@ def get_horarios():
                     })
     
     return jsonify({"error": "No se encontraron horarios para la película en el cine especificado"}), 404
+
+
+@app.route('/cartelera', methods=['GET'])
+def get_cartelera_by_cine():
+    cine_nombre = request.args.get('cine')
+
+    print(cine_nombre)
+    
+    if not cine_nombre:
+        return jsonify({"error": "Parámetro 'cine' es requerido"}), 400
+    
+    cines_data = get_cines_data()
+    if cines_data is None:
+        return jsonify({"error": "Error en la solicitud HTTP o no se encontraron cines"}), 500
+    
+    for cine in cines_data:
+        if cine["nombre"].lower() == cine_nombre.lower():
+            print("Cine encontrado:")
+            print(cine["nombre"] + " " + cine["url"])
+            cine_url = cine["url"]
+            peliculas = get_peliculas_by_cine(cine_url)
+            return jsonify(peliculas)
+    
+    return jsonify({"error": "No se encontraron horarios para el cine especificado"}), 404
 
 @app.route('/cines_pelicula', methods=['GET'])
 def get_cines_pelicula():

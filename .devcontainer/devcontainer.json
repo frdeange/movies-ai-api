@@ -1,6 +1,5 @@
 {
-    "name": "My Dev Container",
-    // "image": "mcr.microsoft.com/vscode/devcontainers/base:0-bullseye",
+    "name": "Movies API Dev Container",
     "build": {
         "dockerfile": "Dockerfile"        
     },
@@ -19,6 +18,8 @@
     "postStartCommand": "pip install -r requirements.txt && python3 app.py",
     "remoteUser": "vscode",
     "features": {
-        "ghcr.io/devcontainers/features/github-cli:1": {}
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/devcontainers/features/azure-cli:1": {},
+        "ghcr.io/devcontainers/features/terraform:1": {},
     }
 }
