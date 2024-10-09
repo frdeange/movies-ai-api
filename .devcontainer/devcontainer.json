@@ -1,0 +1,21 @@
+{
+    "name": "My Dev Container",
+    // "image": "mcr.microsoft.com/vscode/devcontainers/base:0-bullseye",
+    "build": {
+        "dockerfile": "Dockerfile"        
+    },
+   "customizations": {
+        "vscode": {
+            "settings": {
+                "terminal.integrated.shell.linux": "/bin/sh"
+            },
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-python.python",
+                "dbaeumer.vscode-eslint"
+            ]
+        }
+    },
+    "postStartCommand": "pip install -r requirements.txt && python3 app.py",
+    "remoteUser": "vscode"
+}
