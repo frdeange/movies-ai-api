@@ -62,11 +62,22 @@ def get_cinemas_data():
             screens_element = cinema.find('div', class_='screen-number')
             screens = screens_element.text.strip() if screens_element else "Number of screens not available"
 
+            # Extract the cinema ID from data-theater attribute
+            data_theater_element = cinema.find('span', class_='add-theater-anchor')
+            cinema_id = None
+            if data_theater_element and data_theater_element.has_attr('data-theater'):
+                data_theater = data_theater_element['data-theater']
+                cinema_id = eval(data_theater).get('id')  # Convert string to dictionary and get the id
+
+            # Create the cinema URL using the ID
+            cinema_url = f"https://www.sensacine.com/cines/cine/{cinema_id}/" if cinema_id else "URL not available"
+
             # Create a dictionary with the cinema data
             cinema_data = {
                 "name": name,
                 "address": address,
-                "num_screens": screens
+                "num_screens": screens,
+                "url": cinema_url
             }
 
             cinemas_data.append(cinema_data)
