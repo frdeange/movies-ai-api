@@ -1,17 +1,17 @@
 openapi: 3.0.0
 info:
-  title: API de Cines y Películas
-  description: API para consultar información de cines y películas en Madrid.
+  title: Cinemas and Movies API
+  description: API to get information about cinemas and movies in Madrid.
   version: 1.0.0
 servers:
   - url: http://localhost:5000
 paths:
-  /cines:
+  /cinemas:
     get:
-      summary: Obtener listado de cines
+      summary: Get list of cinemas
       responses:
         '200':
-          description: Listado de cines
+          description: List of cinemas
           content:
             application/json:
               schema:
@@ -19,33 +19,23 @@ paths:
                 items:
                   type: object
                   properties:
-                    nombre:
+                    id:
+                      type: string
+                      example: "E0146"
+                    name:
                       type: string
                       example: "Cines Callao"
-                    direccion:
+                    address:
                       type: string
                       example: "Plaza Callao 3 28013 Madrid"
+                    num_screens:
+                      type: string
+                      example: "5"
                     url:
                       type: string
                       example: "https://www.sensacine.com/cines/cine/E0146/"
-                    peliculas:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          titulo:
-                            type: string
-                            example: "La virgen roja"
-                          horarios:
-                            type: array
-                            items:
-                              type: string
-                              example: "16:00"
-                          fecha:
-                            type: string
-                            example: "2024-10-09"
-        '500':
-          description: Error en la solicitud HTTP o no se encontraron cines
+        '404':
+          description: No cinema data available for today
           content:
             application/json:
               schema:
@@ -53,13 +43,20 @@ paths:
                 properties:
                   error:
                     type: string
-                    example: "Error en la solicitud HTTP o no se encontraron cines"
-  /peliculas:
+                    example: "No cinema data available for today"
+  /movies:
     get:
-      summary: Obtener listado de películas en todos los cines
+      summary: Get list of movies in a cinema
+      parameters:
+        - in: query
+          name: cinema_id
+          schema:
+            type: string
+          required: true
+          description: Cinema ID
       responses:
         '200':
-          description: Listado de películas
+          description: List of movies in the specified cinema
           content:
             application/json:
               schema:
@@ -67,86 +64,79 @@ paths:
                 items:
                   type: object
                   properties:
-                    cine:
+                    id:
                       type: string
-                      example: "Cines Callao"
-                    direccion:
-                      type: string
-                      example: "Plaza Callao 3 28013 Madrid"
-                    titulo:
+                      example: "12345"
+                    title:
                       type: string
                       example: "La virgen roja"
-                    horarios:
+                    director:
+                      type: string
+                      example: "Example Director"
+                    cast:
+                      type: array
+                      items:
+                        type: string
+                        example: "Example Actor"
+                    synopsis:
+                      type: string
+                      example: "An example synopsis."
+                    showtimes:
+                      type: object
+                      additionalProperties:
+                        type: array
+                        items:
+                          type: string
+                          example: "16:00"
+        '404':
+          description: Cinema not found or no data available
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Cinema not found"
+  /showtimes:
+    get:
+      summary: Get showtimes of a movie in a specific cinema
+      parameters:
+        - in: query
+          name: cinema_id
+          schema:
+            type: string
+          required: true
+          description: Cinema ID
+        - in: query
+          name: movie_title
+          schema:
+            type: string
+          required: true
+          description: Movie title
+      responses:
+        '200':
+          description: Showtimes of the movie in the cinema
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cinema:
+                    type: string
+                    example: "Cines Callao"
+                  movie:
+                    type: string
+                    example: "La virgen roja"
+                  showtimes:
+                    type: object
+                    additionalProperties:
                       type: array
                       items:
                         type: string
                         example: "16:00"
-                    fecha:
-                      type: string
-                      example: "2024-10-09"
-        '500':
-          description: Error en la solicitud HTTP o no se encontraron cines
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Error en la solicitud HTTP o no se encontraron cines"
-  /horarios:
-    get:
-      summary: Obtener horarios de una película en un cine concreto
-      parameters:
-        - in: query
-          name: cine
-          schema:
-            type: string
-          required: true
-          description: Nombre del cine
-        - in: query
-          name: pelicula
-          schema:
-            type: string
-          required: true
-          description: Título de la película
-      responses:
-        '200':
-          description: Horarios de la película en el cine
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  cine:
-                    type: string
-                    example: "Cines Callao"
-                  direccion:
-                    type: string
-                    example: "Plaza Callao 3 28013 Madrid"
-                  titulo:
-                    type: string
-                    example: "La virgen roja"
-                  horarios:
-                    type: array
-                    items:
-                      type: string
-                      example: "16:00"
-                  fecha:
-                    type: string
-                    example: "2024-10-09"
-        '400':
-          description: Parámetros 'cine' y 'pelicula' son requeridos
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Parámetros 'cine' y 'pelicula' son requeridos"
         '404':
-          description: No se encontraron horarios para la película en el cine especificado
+          description: Showtimes not found for the specified movie in the cinema
           content:
             application/json:
               schema:
@@ -154,30 +144,20 @@ paths:
                 properties:
                   error:
                     type: string
-                    example: "No se encontraron horarios para la película en el cine especificado"
-        '500':
-          description: Error en la solicitud HTTP o no se encontraron cines
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Error en la solicitud HTTP o no se encontraron cines"
-  /cines_pelicula:
+                    example: "Showtimes not found for the specified movie in the cinema"
+  /cinemas_movie:
     get:
-      summary: Obtener listado de cines que emiten una película concreta
+      summary: Get list of cinemas showing a specific movie
       parameters:
         - in: query
-          name: pelicula
+          name: movie_title
           schema:
             type: string
           required: true
-          description: Título de la película
+          description: Movie title
       responses:
         '200':
-          description: Listado de cines que emiten la película
+          description: List of cinemas showing the movie
           content:
             application/json:
               schema:
@@ -185,32 +165,21 @@ paths:
                 items:
                   type: object
                   properties:
-                    cine:
+                    cinema:
                       type: string
                       example: "Cines Callao"
-                    direccion:
+                    address:
                       type: string
                       example: "Plaza Callao 3 28013 Madrid"
-                    horarios:
-                      type: array
-                      items:
-                        type: string
-                        example: "16:00"
-                    fecha:
-                      type: string
-                      example: "2024-10-09"
-        '400':
-          description: Parámetro 'pelicula' es requerido
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Parámetro 'pelicula' es requerido"
+                    showtimes:
+                      type: object
+                      additionalProperties:
+                        type: array
+                        items:
+                          type: string
+                          example: "16:00"
         '404':
-          description: No se encontraron cines que emitan la película especificada
+          description: No cinemas found showing the specified movie
           content:
             application/json:
               schema:
@@ -218,14 +187,4 @@ paths:
                 properties:
                   error:
                     type: string
-                    example: "No se encontraron cines que emitan la película especificada"
-        '500':
-          description: Error en la solicitud HTTP o no se encontraron cines
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Error en la solicitud HTTP o no se encontraron cines"
+                    example: "No cinemas found showing the specified movie"

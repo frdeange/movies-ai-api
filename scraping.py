@@ -1,27 +1,37 @@
 import requests
 import json
-from flask import Flask, jsonify, request, send_from_directory, Response
+import os
+import time
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
-from flask_swagger_ui import get_swaggerui_blueprint
 from collections import OrderedDict
+from azure.cosmos import CosmosClient, PartitionKey, exceptions
+from dotenv import load_dotenv
 
-app = Flask(__name__)
+# Load environment variables
+load_dotenv()
 
-SWAGGER_URL = '/swagger'
-API_URL = '/static/openapi.yaml'
-swaggerui_blueprint = get_swaggerui_blueprint(
-    SWAGGER_URL,
-    API_URL,
-    config={
-        'app_name': "Cinema and Movies API"
-    }
+# Get the environment variables for Azure Cosmos DB
+AZURE_COSMOSDB_URI = os.getenv("AZURE_COSMOSDB_URI")
+AZURE_COSMOSDB_KEY = os.getenv("AZURE_COSMOSDB_KEY")
+AZURE_COSMOSDB_DATABASE_NAME = os.getenv("AZURE_COSMOSDB_DATABASE_NAME")
+AZURE_COSMOSDB_CONTAINER_NAME = os.getenv("AZURE_COSMOSDB_CONTAINER_NAME")
+AZURE_COSMOSDB_PARTITION_KEY = os.getenv("AZURE_COSMOSDB_PARTITION_KEY")
+
+# Get the environment variables for web scraping
+WEB_SCRAPING_URL = os.getenv("WEB_SCRAPING_URL")
+
+# Initialize Cosmos DB client
+client = CosmosClient(AZURE_COSMOSDB_URI, {'masterKey': AZURE_COSMOSDB_KEY})
+database = client.create_database_if_not_exists(id=AZURE_COSMOSDB_DATABASE_NAME)
+container = database.create_container_if_not_exists(
+    id=AZURE_COSMOSDB_CONTAINER_NAME,
+    partition_key=PartitionKey(path=AZURE_COSMOSDB_PARTITION_KEY),
+    offer_throughput=400
 )
-app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
-
-def get_cinemas_data():
+def scrape_cinemas_data():
     # Base URL of the web page
-    base_url = "https://www.sensacine.com/cines/provincias-27410/"
+    base_url = WEB_SCRAPING_URL
 
     # Make the HTTP request to the web page
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -84,28 +94,26 @@ def get_cinemas_data():
                 ("movies", [])
             ])
 
-            # Get movies for the cinema
-            cinema_response = requests.get(cinema_url)
-            if cinema_response.status_code == 200:
-                cinema_soup = BeautifulSoup(cinema_response.content, 'lxml')
-
+            # Get movies for the cinema for the next 7 days
+            if cinema_url != "URL not available":
                 for i in range(7):
                     date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
                     date_url = cinema_url + f"#shwt_date={date}"
-
-                    date_response = requests.get(date_url)
-
+                    # print(f"Fetching movies for cinema: {cinema_data['name']}, URL: {date_url}, Date: {date}")
+                    date_response = requests.get(date_url,timeout=(3.05, 27))
                     if date_response.status_code == 200:
+                        #time.sleep(1)  # Sleep for 1 second to avoid being blocked
                         date_soup = BeautifulSoup(date_response.content, 'lxml')
+                                            
                         movies = date_soup.find_all('div', class_='card entity-card entity-card-list movie-card-theater cf hred')
-                        # print(movies)
+                        # print(f"Found {len(movies)} movies for cinema: {cinema_data['name']} on date: {date}")
                         if movies:
                             for movie in movies:
 
                                 # Extract the movie ID
                                 movie_title_element = movie.find('a', class_='meta-title-link')
                                 movie_id = movie_title_element['href'].split('-')[-1][:-1] if movie_title_element else None  # ID sacado de la URL
-    
+
                                 # Extract the title
                                 title = movie_title_element.text.strip() if movie_title_element else "Título no disponible"
 
@@ -120,6 +128,19 @@ def get_cinemas_data():
                                 # Extract the synopsis
                                 synopsis_element = movie.find('div', class_='synopsis')
                                 synopsis = synopsis_element.find('div', class_='content-txt').text.strip() if synopsis_element else "Sinopsis no disponible"
+                                
+                                # Extract Showtimes and organize by date
+                                showtimes_element = movie.find('div', class_='showtimes-anchor')
+                                showtimes_by_date = {}
+                                if showtimes_element:
+                                    showtime_blocks = showtimes_element.find_all('div', class_='showtimes-hour-block')
+                                    showtimes = []
+                                    for block in showtime_blocks:
+                                        time_element = block.find('span', class_='showtimes-hour-item-value')
+                                        if time_element:
+                                            showtimes.append(time_element.text.strip())
+                                    if showtimes:
+                                        showtimes_by_date[date] = showtimes
 
                                 # Create Dictionary with movie data
                                 movie_data = {
@@ -128,121 +149,79 @@ def get_cinemas_data():
                                     "director": director,
                                     "cast": cast,
                                     "synopsis": synopsis,
-                                    "cinemas": []
+                                    "showtimes": showtimes_by_date,
                                 }
+                                # print(movie_data)
 
                                 cinema_data["movies"].append(movie_data)
-
-            cinemas_data.append(cinema_data)
+                        else:
+                            #print("Salta mensaje de alerta")
+                            continue
+                # Add the cinema data to the list of all cinemas
+                cinemas_data.append(cinema_data)
 
     return cinemas_data
 
-@app.route('/cinemas', methods=['GET'])
-def get_cinemas():    
-    cinemas_data = get_cinemas_data()
-    if cinemas_data is None:
-        return jsonify({"error": "Could not retrieve cinema data"}), 500
+def save_to_json(data):
+    # Get the current date in the format YYYYMMDD
+    current_date = datetime.now().strftime('%Y%m%d')
+    
+    # Define the filename with the current date
+    filename = f"{current_date}.json"
+    
+    # Save the data to a JSON file
+    with open(filename, 'w', encoding='utf-8') as json_file:
+        json.dump(data, json_file, ensure_ascii=False, indent=2)
 
-    # Convertir a JSON garantizando que el orden de los campos se mantenga
-    response_json = json.dumps(cinemas_data, ensure_ascii=False, indent=2)
+    print(f"Data saved to {filename}")
+    return filename
 
-    # Usar Flask Response para devolver el JSON
-    return Response(response_json, content_type='application/json')
+def check_if_document_exists(document_id):
+    query = f"SELECT * FROM c WHERE c.id = '{document_id}'"
+    items = list(container.query_items(
+        query=query,
+        enable_cross_partition_query=True
+    ))
+    if items:
+        return True
+    else:
+        return False
 
-@app.route('/movies', methods=['GET'])
-def get_movies():
-    cinemas_data = get_cinemas_data()
-    if cinemas_data is None:
-        return jsonify({"error": "Could not retrieve cinema data"}), 500
+def save_to_cosmosdb(data):
+    # Get the current date in the format YYYYMMDD
+    current_date = datetime.now().strftime('%Y%m%d')
     
-    cinemas_summary = []
-    for cinema in cinemas_data:
-        cinema_summary = {
-            "name": cinema["name"],
-            "address": cinema["address"],
-            "num_screens": cinema["num_screens"],
-            "url": cinema["url"],
-            "movies": [
-                {"title": movie["title"]} for movie in cinema["movies"]
-            ]
-        }
-        cinemas_summary.append(cinema_summary)
+    # Prepare the document to be stored in CosmosDB
+    document = {
+        "id": current_date,
+        "date": current_date,
+        "data": data
+    }
     
-    return jsonify(cinemas_summary)
+    # Upsert the document into the CosmosDB container
+    container.upsert_item(document)
+    print(f"Data saved to Azure CosmosDB with ID: {current_date}")
 
-@app.route('/showtimes', methods=['GET'])
-def get_showtimes():
-    cinema_name = request.args.get('cinema')
-    movie_title = request.args.get('movie')
+def scrape_and_save():
+    # Get the current date in the format YYYYMMDD
+    current_date = datetime.now().strftime('%Y%m%d')
     
-    if not cinema_name or not movie_title:
-        return jsonify({"error": "Parameters 'cinema' and 'movie' are required"}), 400
+    # Check if the document already exists in CosmosDB
+    if check_if_document_exists(current_date):
+        print(f"Document with ID {current_date} already exists in CosmosDB. Skipping scraping.")
+        return
     
-    cinemas_data = get_cinemas_data()
-    if cinemas_data is None:
-        return jsonify({"error": "HTTP request error or no cinemas found"}), 500
+    # Scrape the data
+    data = scrape_cinemas_data()
     
-    for cinema in cinemas_data:
-        if cinema["name"].lower() == cinema_name.lower():
+    # Save the data to a JSON file
+    filename = save_to_json(data)
+    
+    # Save the data to Azure CosmosDB
+    save_to_cosmosdb(data)
+    
+    return filename
 
-            for movie in cinema["movies"]:
-                if movie["title"].lower() == movie_title.lower():
-                    return jsonify({
-                        "cinema": cinema["name"],
-                        "address": cinema["address"],
-                        "title": movie["title"],
-                        
-                    })
-    
-    return jsonify({"error": "No showtimes found for the specified movie in the cinema"}), 404
-
-@app.route('/cinema_showtimes', methods=['GET'])
-def get_cinema_showtimes():
-    cinema_name = request.args.get('cinema')
-
-    if not cinema_name:
-        return jsonify({"error": "Parameter 'cinema' is required"}), 400
-    
-    cinemas_data = get_cinemas_data()
-    if cinemas_data is None:
-        return jsonify({"error": "HTTP request error or no cinemas found"}), 500
-    
-    for cinema in cinemas_data:
-        if cinema["name"].lower() == cinema_name.lower():
-            return jsonify(cinema["movies"])
-    
-    return jsonify({"error": "No showtimes found for the specified cinema"}), 404
-
-@app.route('/cinemas_movie', methods=['GET'])
-def get_cinemas_movie():
-    movie_title = request.args.get('movie')
-    
-    if not movie_title:
-        return jsonify({"error": "Parameter 'movie' is required"}), 400
-    
-    cinemas_data = get_cinemas_data()
-    if cinemas_data is None:
-        return jsonify({"error": "HTTP request error or no cinemas found"}), 500
-    
-    cinemas_movie = []
-    for cinema in cinemas_data:
-        for movie in cinema["movies"]:
-            if movie["title"].lower() == movie_title.lower():
-                cinemas_movie.append({
-                    "cinema": cinema["name"],
-                    "address": cinema["address"],
-                    "showtimes": movie["showtimes"],
-                    "date": movie["date"]
-                })
-    
-    if not cinemas_movie:
-        return jsonify({"error": "No cinemas found showing the specified movie"}), 404
-    
-    return jsonify(cinemas_movie)
-
-@app.route('/static/<path:path>')
-def send_static(path):
-    return send_from_directory('static', path)
-
-if __name__ == '__main__':
-    app.run(debug=True)
+# If needed, you can call scrape_and_save() here or import this module in your main application.
+if __name__ == "__main__":
+    scrape_and_save()
