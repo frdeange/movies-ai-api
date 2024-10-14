@@ -5,6 +5,7 @@ from flask_cors import CORS
 from datetime import datetime
 from azure.cosmos import CosmosClient, exceptions
 import os
+from collections import OrderedDict
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -54,16 +55,18 @@ def get_cinemas():
 
     cinemas_summary = []
     for cinema in data:
-        cinema_summary = {
+        cinema_summary = OrderedDict({
             "id": cinema["id"],
             "name": cinema["name"],
             "address": cinema["address"],
             "num_screens": cinema["num_screens"],
             "url": cinema["url"]
-        }
+        })
         cinemas_summary.append(cinema_summary)
     
-    return jsonify(cinemas_summary)
+    # Serialize the data to JSON and return it
+    response_json = json.dumps(cinemas_summary)
+    return Response(response_json, mimetype='application/json')
 
 @app.route('/movies', methods=['GET'])
 def get_movies():
@@ -75,7 +78,19 @@ def get_movies():
     
     for cinema in data:
         if cinema["id"] == cinema_id:
-            return jsonify(cinema["movies"])
+            cinema_movies_data = OrderedDict({
+                "id": cinema["id"],
+                "name": cinema["name"],
+                "address": cinema["address"],
+                "num_screens": cinema["num_screens"],
+                "url": cinema["url"],
+                "movies": cinema["movies"]
+            })
+            # Serialize the data to JSON and return it
+            response_json = json.dumps(cinema_movies_data)
+            return Response(response_json, mimetype='application/json')
+            # return jsonify(cinema_movies_data)
+            # return jsonify(cinema["movies"])
     
     return jsonify({"error": "Cinema not found"}), 404
 
