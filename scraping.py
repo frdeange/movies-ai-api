@@ -215,12 +215,12 @@ def scrape_and_save():
     data = scrape_cinemas_data()
     
     # Save the data to a JSON file
-    filename = save_to_json(data)
+    # filename = save_to_json(data)
     
     # Save the data to Azure CosmosDB
     save_to_cosmosdb(data)
     
-    return filename
+    return
 
 # If needed, you can call scrape_and_save() here or import this module in your main application.
 if __name__ == "__main__":
