@@ -9,7 +9,7 @@ htmlcov/
 .tox/
 docs/_build/
 .deployment/
-*.env
+.env
 
 # Terraform
 .terraform/
